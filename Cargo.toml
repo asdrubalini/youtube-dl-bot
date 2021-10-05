@@ -1,0 +1,12 @@
+[package]
+name = "youtube-dl-bot"
+version = "0.0.1"
+edition = "2018"
+
+[dependencies]
+tokio = { version = "1", features = [ "full" ] }
+rand = "0.8"
+dotenv = "0.15"
+openssl = { version = "0.10", features = [ "vendored" ] }
+telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot" }
+futures = "0.3"
