@@ -19,10 +19,14 @@ pub async fn mp3_download_task(api: Api, youtube_url: String, chat_id: ChatId) {
         }
     };
 
+    // TODO: exception handling
+
     let audio_file =
         InputFileUpload::with_path(audio_path.as_os_str().to_string_lossy().to_string());
 
     api.send(SendAudio::new(chat_ref, audio_file))
         .await
         .unwrap();
+
+    downloader.cleanup();
 }

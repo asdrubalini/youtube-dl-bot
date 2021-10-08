@@ -1,4 +1,4 @@
 mod download_tasks;
-mod handle_messages;
+mod handlers;
 
-pub use handle_messages::handle_messages;
+pub use handlers::handle_events;

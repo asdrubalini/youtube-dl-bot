@@ -1,4 +1,8 @@
-use std::{path::PathBuf, process::Command};
+use std::{
+    fs::remove_file,
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 use rand::Rng;
 
@@ -7,7 +11,8 @@ const RANDOM_FILENAME_LENGTH: usize = 32;
 
 pub trait Downloader {
     fn new(url: &str) -> Self;
-    fn download(self) -> Result<PathBuf, DownloaderError>;
+    fn download(&self) -> Result<PathBuf, DownloaderError>;
+    fn cleanup(self);
 }
 
 #[derive(Debug)]
@@ -22,6 +27,7 @@ pub struct Mp3Downloader {
 }
 
 impl Downloader for Mp3Downloader {
+    /// Create a Downloader instance
     fn new(url: &str) -> Self {
         let output_path = generate_random_filename(".mp3");
 
@@ -31,9 +37,12 @@ impl Downloader for Mp3Downloader {
         }
     }
 
-    fn download(self) -> Result<PathBuf, DownloaderError> {
-        // Start download
-        let youtube_dl_status_code = Command::new("youtube-dl")
+    /// Start download process
+    fn download(&self) -> Result<PathBuf, DownloaderError> {
+        // Start download, suppress output and capture code
+        log::trace!("Starting youtube-dl process");
+
+        let download_status = Command::new("youtube-dl")
             .args([
                 "--extract-audio",
                 "--audio-format",
@@ -42,23 +51,39 @@ impl Downloader for Mp3Downloader {
                 &self.output_path.as_os_str().to_string_lossy(),
                 &self.url,
             ])
+            .stdout(Stdio::null())
             .status()
             .map_err(|_| DownloaderError::ProcessError(None))?
             .code();
 
         // Sanity check process return code and error out in case is wasn't success
-        if youtube_dl_status_code.is_none()
-            || (youtube_dl_status_code.is_some() && youtube_dl_status_code.unwrap() != 0)
+        if download_status.is_none() || (download_status.is_some() && download_status.unwrap() != 0)
         {
-            return Err(DownloaderError::ProcessError(youtube_dl_status_code));
+            log::error!(
+                "youtube-dl returned non-zero status code for {:?}",
+                &self.output_path
+            );
+            return Err(DownloaderError::ProcessError(download_status));
         }
 
         // Make sure that the output file created by youtube-dl was actually created
         if !self.output_path.exists() {
+            log::error!(
+                "youtube-dl didn't create mp3 file for {:?}",
+                &self.output_path
+            );
             return Err(DownloaderError::FileNotCreated);
         }
 
-        Ok(self.output_path)
+        Ok(self.output_path.clone())
+    }
+
+    /// Remove generated file
+    fn cleanup(self) {
+        match remove_file(self.output_path.clone()) {
+            Ok(_) => log::trace!("Removed {:?}", self.output_path),
+            Err(error) => log::trace!("Error while removing {:?}: {}", self.output_path, error),
+        }
     }
 }
 
@@ -81,7 +106,7 @@ fn generate_random_filename(extension: &str) -> PathBuf {
     let mut path = PathBuf::from(RANDOM_PATH);
     path.push(filename);
 
-    println!("Random file generated: {:?}", path);
+    log::trace!("Random file generated: {:?}", path);
 
     path
 }
